@@ -1,6 +1,6 @@
 # EKS Chaos Guardian - Build and Deploy Scripts
 
-.PHONY: help deploy destroy demo-oom demo-image-pull demo-readiness demo-disk demo-pdb demo-coredns clean
+.PHONY: help deploy destroy demo-oom demo-image-pull demo-readiness demo-disk demo-pdb demo-coredns clean ui-start ui-stop
 
 help: ## Show this help message
 	@echo "EKS Chaos Guardian - Available commands:"
@@ -50,6 +50,14 @@ demo-all: ## Run all demo scenarios
 	$(MAKE) demo-disk
 	$(MAKE) demo-pdb
 	$(MAKE) demo-coredns
+
+ui-start: ## Start the web UI dashboard
+	@echo "🌐 Starting EKS Chaos Guardian Web UI..."
+	cd ui && python server.py
+
+ui-stop: ## Stop the web UI dashboard
+	@echo "🛑 Stopping Web UI..."
+	pkill -f "python server.py" || true
 
 clean: ## Clean up temporary files
 	@echo "🧹 Cleaning up..."

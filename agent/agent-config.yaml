@@ -1,0 +1,299 @@
+# EKS Chaos Guardian - Bedrock AgentCore Configuration
+# AWS AI Agent Hackathon Project
+
+agent:
+  name: "eks-chaos-guardian"
+  description: "Autonomous AI agent for EKS chaos engineering and remediation"
+  version: "1.0.0"
+  
+  # Foundation Model Configuration
+  foundation_model:
+    model_id: "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    temperature: 0.1
+    max_tokens: 4000
+    top_p: 0.9
+    
+  # System Instructions
+  instructions: |
+    You are a senior Site Reliability Engineer (SRE) with expertise in Kubernetes and AWS EKS.
+    
+    Your role is to:
+    1. Analyze chaos engineering results and system failures
+    2. Explain root causes in plain English with evidence
+    3. Propose the smallest, safest fixes with clear reasoning
+    4. Respect autonomy modes (Dry-run, Approve, Auto)
+    5. Execute remediation only through approved tool actions
+    6. Verify recovery and document successful runbooks
+    
+    Key principles:
+    - Always show evidence (log lines, metric windows, K8s fields)
+    - Propose minimal changes that address the root cause
+    - Request approval for medium/high risk actions
+    - Auto-execute only low-risk actions (rollout restart, CoreDNS restart)
+    - Document everything for future reference
+    
+    When analyzing failures:
+    - Correlate multiple signals (logs, metrics, K8s events)
+    - Identify the primary root cause
+    - Provide specific evidence references
+    - Suggest targeted remediation steps
+    
+    Risk assessment:
+    - LOW RISK: rollout restart, CoreDNS restart, cache refresh
+    - MEDIUM RISK: resource limit increases, HPA scaling
+    - HIGH RISK: node termination, PDB changes, network modifications
+
+  # Guardrails
+  guardrails:
+    - type: "content_filter"
+      description: "Filter sensitive information before sending to LLM"
+    - type: "action_validation"
+      description: "Validate all tool actions before execution"
+    - type: "risk_assessment"
+      description: "Assess risk level of proposed actions"
+
+  # Tools Configuration
+  tools:
+    - name: "cloudwatch_logs_query"
+      description: "Query CloudWatch Logs Insights for log analysis"
+      input_schema:
+        type: "object"
+        properties:
+          log_group:
+            type: "string"
+            description: "CloudWatch log group name"
+          query:
+            type: "string"
+            description: "Logs Insights query string"
+          start_time:
+            type: "string"
+            description: "Start time for query (ISO format)"
+          end_time:
+            type: "string"
+            description: "End time for query (ISO format)"
+          limit:
+            type: "integer"
+            description: "Maximum number of results"
+            default: 100
+        required: ["log_group", "query", "start_time", "end_time"]
+    
+    - name: "cloudwatch_metrics"
+      description: "Retrieve CloudWatch metrics for analysis"
+      input_schema:
+        type: "object"
+        properties:
+          namespace:
+            type: "string"
+            description: "CloudWatch namespace"
+          metric_name:
+            type: "string"
+            description: "Metric name"
+          dimensions:
+            type: "object"
+            description: "Metric dimensions"
+          start_time:
+            type: "string"
+            description: "Start time for metrics (ISO format)"
+          end_time:
+            type: "string"
+            description: "End time for metrics (ISO format)"
+          period:
+            type: "integer"
+            description: "Metric period in seconds"
+            default: 300
+        required: ["namespace", "metric_name", "start_time", "end_time"]
+    
+    - name: "k8s_describe"
+      description: "Describe Kubernetes resources"
+      input_schema:
+        type: "object"
+        properties:
+          resource_type:
+            type: "string"
+            enum: ["pod", "deployment", "service", "hpa", "pdb", "node"]
+            description: "Type of Kubernetes resource"
+          namespace:
+            type: "string"
+            description: "Kubernetes namespace"
+          name:
+            type: "string"
+            description: "Resource name"
+          cluster:
+            type: "string"
+            description: "EKS cluster name"
+        required: ["resource_type", "namespace", "name", "cluster"]
+    
+    - name: "k8s_patch"
+      description: "Apply patches to Kubernetes resources"
+      input_schema:
+        type: "object"
+        properties:
+          resource_type:
+            type: "string"
+            enum: ["deployment", "hpa", "pdb", "service"]
+            description: "Type of Kubernetes resource to patch"
+          namespace:
+            type: "string"
+            description: "Kubernetes namespace"
+          name:
+            type: "string"
+            description: "Resource name"
+          patch:
+            type: "object"
+            description: "JSON patch to apply"
+          cluster:
+            type: "string"
+            description: "EKS cluster name"
+        required: ["resource_type", "namespace", "name", "patch", "cluster"]
+    
+    - name: "k8s_rollout_restart"
+      description: "Restart a Kubernetes deployment"
+      input_schema:
+        type: "object"
+        properties:
+          deployment_name:
+            type: "string"
+            description: "Name of the deployment to restart"
+          namespace:
+            type: "string"
+            description: "Kubernetes namespace"
+          cluster:
+            type: "string"
+            description: "EKS cluster name"
+        required: ["deployment_name", "namespace", "cluster"]
+    
+    - name: "k8s_scale"
+      description: "Scale Kubernetes resources"
+      input_schema:
+        type: "object"
+        properties:
+          resource_type:
+            type: "string"
+            enum: ["deployment", "hpa"]
+            description: "Type of resource to scale"
+          namespace:
+            type: "string"
+            description: "Kubernetes namespace"
+          name:
+            type: "string"
+            description: "Resource name"
+          replicas:
+            type: "integer"
+            description: "Number of replicas"
+          cluster:
+            type: "string"
+            description: "EKS cluster name"
+        required: ["resource_type", "namespace", "name", "replicas", "cluster"]
+    
+    - name: "node_cordon"
+      description: "Cordon a Kubernetes node"
+      input_schema:
+        type: "object"
+        properties:
+          node_name:
+            type: "string"
+            description: "Name of the node to cordon"
+          cluster:
+            type: "string"
+            description: "EKS cluster name"
+        required: ["node_name", "cluster"]
+    
+    - name: "node_drain"
+      description: "Drain a Kubernetes node"
+      input_schema:
+        type: "object"
+        properties:
+          node_name:
+            type: "string"
+            description: "Name of the node to drain"
+          cluster:
+            type: "string"
+            description: "EKS cluster name"
+          force:
+            type: "boolean"
+            description: "Force drain even if pods cannot be evicted"
+            default: false
+        required: ["node_name", "cluster"]
+    
+    - name: "asg_scale"
+      description: "Scale Auto Scaling Group"
+      input_schema:
+        type: "object"
+        properties:
+          asg_name:
+            type: "string"
+            description: "Name of the Auto Scaling Group"
+          desired_capacity:
+            type: "integer"
+            description: "Desired capacity"
+          cluster:
+            type: "string"
+            description: "EKS cluster name"
+        required: ["asg_name", "desired_capacity", "cluster"]
+    
+    - name: "slack_notify"
+      description: "Send notification to Slack"
+      input_schema:
+        type: "object"
+        properties:
+          channel:
+            type: "string"
+            description: "Slack channel name"
+          message:
+            type: "string"
+            description: "Message to send"
+          blocks:
+            type: "array"
+            description: "Slack blocks for rich formatting"
+          correlation_id:
+            type: "string"
+            description: "Correlation ID for tracking"
+        required: ["channel", "message", "correlation_id"]
+    
+    - name: "save_runbook"
+      description: "Save a successful runbook to storage"
+      input_schema:
+        type: "object"
+        properties:
+          pattern_id:
+            type: "string"
+            description: "Unique identifier for the failure pattern"
+          runbook:
+            type: "object"
+            description: "Runbook content"
+          correlation_id:
+            type: "string"
+            description: "Correlation ID for tracking"
+        required: ["pattern_id", "runbook", "correlation_id"]
+    
+    - name: "get_runbook"
+      description: "Retrieve a stored runbook"
+      input_schema:
+        type: "object"
+        properties:
+          pattern_id:
+            type: "string"
+            description: "Pattern ID to search for"
+          cluster:
+            type: "string"
+            description: "EKS cluster name"
+        required: ["pattern_id", "cluster"]
+
+  # Orchestration Configuration
+  orchestration:
+    max_iterations: 10
+    timeout_seconds: 300
+    retry_attempts: 3
+    retry_delay_seconds: 5
+    
+  # Memory Configuration
+  memory:
+    enabled: true
+    type: "external"  # Using S3 + DynamoDB
+    retention_days: 30
+    
+  # Monitoring Configuration
+  monitoring:
+    enable_tracing: true
+    log_level: "INFO"
+    metrics_enabled: true

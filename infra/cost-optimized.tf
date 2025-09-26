@@ -1,5 +1,5 @@
-# EKS Chaos Guardian - Cost-Optimized Infrastructure
-# Optimized for minimal cost while maintaining functionality
+# EKS Chaos Guardian - Cost Optimized Infrastructure
+# AWS AI Agent Hackathon 2025
 
 terraform {
   required_version = ">= 1.0"
@@ -7,6 +7,10 @@ terraform {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
     }
   }
 }
@@ -31,7 +35,7 @@ locals {
   }
 }
 
-# VPC - Minimal configuration
+# VPC Module - Cost optimized
 module "vpc" {
   source = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
@@ -133,7 +137,7 @@ resource "aws_iam_role_policy_attachment" "cluster_AmazonEKSClusterPolicy" {
   role       = aws_iam_role.cluster.name
 }
 
-# IAM Role for Node Group
+# IAM Role for EKS Node Group
 resource "aws_iam_role" "node_group" {
   name = "${local.name}-node-group-role"
 
@@ -168,21 +172,21 @@ resource "aws_iam_role_policy_attachment" "node_group_AmazonEC2ContainerRegistry
 
 # CloudWatch Log Group for EKS
 resource "aws_cloudwatch_log_group" "cluster" {
-  name              = "/aws/eks/${local.name}-autopilot/cluster"
-  retention_in_days = 3  # Minimal retention for cost savings
+  name              = "/aws/eks/${aws_eks_cluster.chaos_guardian.name}/cluster"
+  retention_in_days = 3  # Cost optimization: short retention
 
   tags = local.tags
 }
 
-# S3 Bucket for Audit Logs and Runbooks - Cost optimized
+# S3 Bucket for runbook storage
+resource "random_id" "bucket_suffix" {
+  byte_length = 4
+}
+
 resource "aws_s3_bucket" "chaos_guardian" {
   bucket = "${local.name}-${random_id.bucket_suffix.hex}"
 
   tags = local.tags
-}
-
-resource "random_id" "bucket_suffix" {
-  byte_length = 4
 }
 
 resource "aws_s3_bucket_versioning" "chaos_guardian" {
@@ -238,48 +242,25 @@ resource "aws_dynamodb_table" "runbook_index" {
   tags = local.tags
 }
 
-# Lambda Functions - Minimal configuration
-resource "aws_lambda_function" "bedrock_agent" {
-  filename         = "../lambda/bedrock-agent/main.py.zip"
-  function_name    = "${local.name}-bedrock-agent"
-  role            = aws_iam_role.lambda_execution_role.arn
-  handler         = "main.lambda_handler"
-  runtime         = "python3.9"
-  timeout         = 300
-  memory_size     = 512  # Minimal memory
-
-  environment {
-    variables = {
-      S3_BUCKET_NAME     = aws_s3_bucket.chaos_guardian.id
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.runbook_index.name
-      SLACK_WEBHOOK_URL  = var.slack_webhook_url
-    }
-  }
-
-  tags = local.tags
-}
-
-# IAM Role for Lambda Functions
+# Lambda Execution Role
 resource "aws_iam_role" "lambda_execution_role" {
   name = "${local.name}-lambda-execution-role"
 
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "lambda.amazonaws.com"
       }
-    ]
+    }]
+    Version = "2012-10-17"
   })
 
   tags = local.tags
 }
 
-# Minimal IAM Policy for Lambda Functions
+# Lambda Policy
 resource "aws_iam_policy" "lambda_policy" {
   name        = "${local.name}-lambda-policy"
   description = "Minimal policy for EKS Chaos Guardian Lambda functions"
@@ -299,15 +280,6 @@ resource "aws_iam_policy" "lambda_policy" {
       {
         Effect = "Allow"
         Action = [
-          "cloudwatch:GetMetricData",
-          "logs:StartQuery",
-          "logs:GetQueryResults"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
           "eks:DescribeCluster",
           "eks:ListClusters"
         ]
@@ -318,13 +290,9 @@ resource "aws_iam_policy" "lambda_policy" {
         Action = [
           "s3:GetObject",
           "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
+          "s3:DeleteObject"
         ]
-        Resource = [
-          aws_s3_bucket.chaos_guardian.arn,
-          "${aws_s3_bucket.chaos_guardian.arn}/*"
-        ]
+        Resource = "${aws_s3_bucket.chaos_guardian.arn}/*"
       },
       {
         Effect = "Allow"
@@ -335,13 +303,6 @@ resource "aws_iam_policy" "lambda_policy" {
           "dynamodb:Scan"
         ]
         Resource = aws_dynamodb_table.runbook_index.arn
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "bedrock:InvokeModel"
-        ]
-        Resource = "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0"
       }
     ]
   })
@@ -350,18 +311,35 @@ resource "aws_iam_policy" "lambda_policy" {
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_policy_attachment" {
-  role       = aws_iam_role.lambda_execution_role.name
   policy_arn = aws_iam_policy.lambda_policy.arn
+  role       = aws_iam_role.lambda_execution_role.name
 }
 
-# API Gateway - Minimal configuration
+# Lambda Function
+resource "aws_lambda_function" "bedrock_agent" {
+  filename         = "../lambda/bedrock-agent/main.py.zip"
+  function_name    = "${local.name}-bedrock-agent"
+  role            = aws_iam_role.lambda_execution_role.arn
+  handler         = "main.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 300
+  memory_size     = 512
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME      = aws_s3_bucket.chaos_guardian.id
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.runbook_index.name
+      SLACK_WEBHOOK_URL   = var.slack_webhook_url
+    }
+  }
+
+  tags = local.tags
+}
+
+# API Gateway
 resource "aws_api_gateway_rest_api" "chaos_guardian_api" {
   name        = "${local.name}-api"
   description = "Minimal API Gateway for EKS Chaos Guardian"
-
-  endpoint_configuration {
-    types = ["REGIONAL"]
-  }
 
   tags = local.tags
 }
@@ -378,12 +356,12 @@ output "cluster_endpoint" {
 }
 
 output "cluster_certificate_authority_data" {
-  description = "Base64 encoded certificate data"
+  description = "Base64 encoded certificate data required to communicate with the cluster"
   value       = aws_eks_cluster.chaos_guardian.certificate_authority[0].data
 }
 
 output "s3_bucket_name" {
-  description = "S3 bucket for audit logs and runbooks"
+  description = "S3 bucket name for runbook storage"
   value       = aws_s3_bucket.chaos_guardian.id
 }
 
@@ -395,13 +373,13 @@ output "api_gateway_url" {
 output "estimated_monthly_cost" {
   description = "Estimated monthly cost breakdown"
   value = {
-    eks_cluster = "$30 (Autopilot cluster)"
-    node_group  = "$15 (t3.small instance)"
+    eks_cluster  = "$30 (Autopilot cluster)"
+    node_group   = "$15 (t3.small instance)"
+    lambda       = "$2 (minimal usage)"
+    s3           = "$1 (minimal storage)"
+    dynamodb     = "$1 (on-demand)"
+    api_gateway  = "$1 (minimal usage)"
     nat_instance = "$5 (t3.nano)"
-    lambda      = "$2 (minimal usage)"
-    s3          = "$1 (minimal storage)"
-    dynamodb    = "$1 (on-demand)"
-    api_gateway = "$1 (minimal usage)"
-    total       = "~$55/month"
+    total        = "~$55/month"
   }
 }

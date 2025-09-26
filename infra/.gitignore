@@ -101,6 +101,7 @@ aws-credentials.json
 *.tfvars
 *.tfvars.json
 .terraform/
+.terraform.lock.hcl
 crash.log
 crash.*.log
 *.tfplan
@@ -317,5 +318,3 @@ demo-output/
 chaos-results/
 runbook-cache/
 agent-cache/
-
-*.zip

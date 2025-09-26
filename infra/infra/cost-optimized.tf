@@ -12,8 +12,7 @@ terraform {
 }
 
 provider "aws" {
-  region  = var.aws_region
-  profile = "eks-chaos-guardian"
+  region = var.aws_region
 }
 
 # Data sources
@@ -45,16 +44,14 @@ module "vpc" {
   public_subnets  = ["10.0.101.0/24", "10.0.102.0/24"]
 
   # Cost optimizations
-  enable_nat_gateway = false  # Disable NAT Gateway to save costs
+  enable_nat_gateway = false  # Use NAT instance instead
   enable_vpn_gateway = false
   enable_dns_hostnames = true
   enable_dns_support = true
 
-  # Enable auto-assign public IP for public subnets (required for EKS nodes)
-  map_public_ip_on_launch = true
-
-  # Note: Without NAT Gateway, private subnets won't have internet access
-  # This is acceptable for demo purposes to minimize costs
+  # Use single NAT instance instead of NAT Gateway (saves ~$45/month)
+  enable_nat_instance = true
+  nat_instance_type   = "t3.nano"  # Smallest instance type
 
   tags = local.tags
 }
@@ -63,10 +60,10 @@ module "vpc" {
 resource "aws_eks_cluster" "chaos_guardian" {
   name     = "${local.name}-autopilot"
   role_arn = aws_iam_role.cluster.arn
-  version  = "1.29"
+  version  = "1.28"
 
   vpc_config {
-    subnet_ids              = concat(module.vpc.private_subnets, module.vpc.public_subnets)
+    subnet_ids              = module.vpc.private_subnets
     endpoint_private_access = true
     endpoint_public_access  = true
     public_access_cidrs     = ["0.0.0.0/0"]
@@ -86,7 +83,7 @@ resource "aws_eks_node_group" "autopilot" {
   cluster_name    = aws_eks_cluster.chaos_guardian.name
   node_group_name = "autopilot-nodes"
   node_role_arn   = aws_iam_role.node_group.arn
-  subnet_ids      = module.vpc.public_subnets
+  subnet_ids      = module.vpc.private_subnets
 
   # Cost-optimized instance types
   instance_types = ["t3.small"]  # Smallest viable instance
@@ -209,10 +206,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "chaos_guardian" {
   rule {
     id     = "delete_old_logs"
     status = "Enabled"
-
-    filter {
-      prefix = ""
-    }
 
     expiration {
       days = 7  # Delete logs after 7 days

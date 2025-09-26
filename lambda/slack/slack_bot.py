@@ -110,12 +110,14 @@ def handle_slash_command(params: Dict[str, str]) -> Dict[str, Any]:
     
     if command == '/chaos':
         return handle_chaos_command(text, user_id, channel_id)
-    elif command == '/status':
+    elif command in ['/status', '/chaos-status', '/cluster-status', '/eks-status', '/guardian-status']:
         return handle_status_command(text, user_id, channel_id)
+    elif command in ['/help', '/chaos-help']:
+        return handle_help_command(text, user_id, channel_id)
     elif command == '/approve':
         return handle_approve_command(text, user_id, channel_id)
     else:
-        return create_response("Unknown command. Available commands: `/chaos`, `/status`, `/approve`")
+        return create_response("Unknown command. Available commands: `/chaos`, `/chaos-status`, `/chaos-help`, `/approve`")
 
 def handle_chaos_command(text: str, user_id: str, channel_id: str) -> Dict[str, Any]:
     """Handle /chaos slash command"""
@@ -740,6 +742,24 @@ def handle_status_command(text: str, user_id: str, channel_id: str) -> Dict[str,
     except Exception as e:
         logger.error(f"Error getting cluster status: {str(e)}")
         return create_response(f"❌ Error getting cluster status: {str(e)}")
+
+def handle_help_command(text: str, user_id: str, channel_id: str) -> Dict[str, Any]:
+    """Handle /help slash command"""
+    
+    help_message = "🤖 *EKS Chaos Guardian - Available Commands*\n\n"
+    help_message += "• `/chaos-status <cluster-name>` - Check cluster status\n"
+    help_message += "• `/chaos node-failure <cluster-name>` - Test node failure\n"
+    help_message += "• `/chaos pod-eviction <cluster-name>` - Test pod eviction\n"
+    help_message += "• `/chaos network-latency <cluster-name>` - Test network latency\n"
+    help_message += "• `/chaos api-throttling <cluster-name>` - Test API throttling\n"
+    help_message += "• `/chaos help` - Show this help message\n"
+    help_message += "• `/approve <plan-id>` - Approve a remediation plan\n\n"
+    help_message += "💡 *Examples:*\n"
+    help_message += "• `/chaos-status eks-chaos-guardian-autopilot`\n"
+    help_message += "• `/chaos node-failure eks-chaos-guardian-autopilot`\n"
+    help_message += "• `/approve plan-12345`"
+    
+    return create_response(help_message)
 
 def handle_approve_command(text: str, user_id: str, channel_id: str) -> Dict[str, Any]:
     """Handle /approve slash command"""

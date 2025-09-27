@@ -1,55 +1,44 @@
-# EKS Chaos Guardian - Web UI
+# 🛡️ EKS Chaos Guardian UI
 
-This directory contains the web-based dashboard for the EKS Chaos Guardian AI agent.
+**Hackathon Demo Frontend - AWS Amplify Deployment**
 
-## Files
+## 📁 **Clean Structure**
 
-- **`index.html`** - Main dashboard interface with chaos scenarios and controls
-- **`server.py`** - Python HTTP server that serves the UI and handles API requests
-- **`.gitignore`** - Excludes temporary files and cache from version control
+```
+ui/
+├── index.html          # Main demo page
+├── amplify.yml         # AWS Amplify configuration
+├── deploy-amplify.sh   # Deployment script
+├── DEPLOY.md          # Step-by-step deployment guide
+├── .gitignore         # Git ignore rules
+└── README.md          # This file
+```
 
-## Features
+## 🚀 **Quick Deploy**
 
-- **System Status Dashboard** - Real-time monitoring of EKS cluster, Bedrock agent, and Lambda functions
-- **Chaos Scenarios** - Interactive buttons to trigger various failure scenarios
-- **File Downloads** - Generate and download log files and CSV exports
-- **OS-Agnostic** - Works on Windows, macOS, and Linux
-- **Responsive Design** - Modern UI with styled modals and notifications
-
-## Usage
-
-1. **Start the server:**
+1. **Run deployment script:**
    ```bash
    cd ui
-   python server.py
+   ./deploy-amplify.sh
    ```
 
-2. **Open the dashboard:**
-   - Navigate to `http://localhost:8080`
-   - The dashboard will load with system status and available scenarios
+2. **Follow steps in `DEPLOY.md`**
 
-3. **Generate files:**
-   - Click "View Logs" to create and download system log files
-   - Click "Export Results" to create and download CSV reports
+3. **Access demo at:** `https://chaos-guardian.cloudaimldeveops.com`
 
-## File Storage
+## 🎯 **What This Contains**
 
-Generated files are stored in OS-appropriate locations:
-- **Windows:** `Documents/chaos-guardian/`
-- **macOS:** `Documents/chaos-guardian/`
-- **Linux:** `chaos-guardian/`
+- ✅ **Professional demo site** with hackathon branding
+- ✅ **AWS tech stack** showcase
+- ✅ **Live scenario** demonstrations
+- ✅ **Performance metrics** and KPIs
+- ✅ **Mobile responsive** design
+- ✅ **Ready for Amplify** deployment
 
-## API Endpoints
+## 💰 **Cost**
 
-- `GET /` - Serves the main dashboard
-- `GET /api/status` - Returns system status
-- `POST /api/logs` - Creates and returns download URL for log files
-- `POST /api/export` - Creates and returns download URL for CSV exports
-- `GET /api/download/logs/{filename}` - Downloads log files
-- `GET /api/download/exports/{filename}` - Downloads CSV files
+- **AWS Amplify:** $0-5/month (free tier available)
+- **Custom domain:** $0 (your existing domain)
+- **SSL certificate:** $0 (AWS Certificate Manager)
 
-## Requirements
-
-- Python 3.6+
-- Modern web browser
-- No additional dependencies required
+**Perfect for hackathon demo!** 🏆

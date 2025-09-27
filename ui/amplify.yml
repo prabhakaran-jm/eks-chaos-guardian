@@ -1,0 +1,14 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "Building EKS Chaos Guardian UI for AWS Amplify"
+    build:
+      commands:
+        - echo "Static site - no build required"
+        - cp index_static.html index.html
+  artifacts:
+    baseDirectory: /
+    files:
+      - '**/*'

@@ -176,13 +176,18 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
         # For demo purposes, we'll simulate the execution
         
         try:
+            # Get the absolute path to the project root
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.join(current_dir, '..')
+            project_root = os.path.abspath(project_root)
+            
             # Simulate running the scenario
             if scenario_id == 'oomkilled':
-                cmd = ['python', '../demo/scenarios/oomkilled.py']
+                cmd = ['python', os.path.join(project_root, 'demo', 'scenarios', 'oomkilled.py')]
             elif scenario_id == 'image-pull-backoff':
-                cmd = ['python', '../demo/scenarios/image_pull_backoff.py']
+                cmd = ['python', os.path.join(project_root, 'demo', 'scenarios', 'image_pull_backoff.py')]
             elif scenario_id == 'readiness-probe':
-                cmd = ['python', '../demo/scenarios/readiness_probe.py']
+                cmd = ['python', os.path.join(project_root, 'demo', 'scenarios', 'readiness_probe.py')]
             else:
                 # For other scenarios, just simulate
                 cmd = ['echo', f'Simulating {scenario_id} scenario']
@@ -232,17 +237,35 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
         print("Deploying infrastructure...")
         
         try:
-            # Run terraform deploy in background
+            # Get the absolute path to the infra directory
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            infra_dir = os.path.join(current_dir, '..', 'infra')
+            infra_dir = os.path.abspath(infra_dir)
+            
+            # Check if infra directory exists
+            if not os.path.exists(infra_dir):
+                return {
+                    'status': 'error',
+                    'message': f'Infra directory not found: {infra_dir}',
+                    'timestamp': datetime.utcnow().isoformat()
+                }
+            
+            # Run terraform apply in background
             def run_terraform():
                 try:
+                    print(f"Running terraform apply in: {infra_dir}")
                     result = subprocess.run(
                         ['terraform', 'apply', '-auto-approve'],
-                        cwd='../infra',
+                        cwd=infra_dir,
                         capture_output=True,
                         text=True,
                         timeout=600  # 10 minutes timeout
                     )
                     print(f"Terraform deployment completed: {result.returncode}")
+                    if result.stdout:
+                        print(f"Terraform output: {result.stdout}")
+                    if result.stderr:
+                        print(f"Terraform errors: {result.stderr}")
                 except subprocess.TimeoutExpired:
                     print("Terraform deployment timed out")
                 except Exception as e:
@@ -261,7 +284,7 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             return {
                 'status': 'error',
-                'message': str(e),
+                'message': f'Failed to start deployment: {str(e)}',
                 'timestamp': datetime.utcnow().isoformat()
             }
     
@@ -270,17 +293,35 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
         print("Cleaning up resources...")
         
         try:
+            # Get the absolute path to the infra directory
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            infra_dir = os.path.join(current_dir, '..', 'infra')
+            infra_dir = os.path.abspath(infra_dir)
+            
+            # Check if infra directory exists
+            if not os.path.exists(infra_dir):
+                return {
+                    'status': 'error',
+                    'message': f'Infra directory not found: {infra_dir}',
+                    'timestamp': datetime.utcnow().isoformat()
+                }
+            
             # Run terraform destroy in background
             def run_cleanup():
                 try:
+                    print(f"Running terraform destroy in: {infra_dir}")
                     result = subprocess.run(
                         ['terraform', 'destroy', '-auto-approve'],
-                        cwd='../infra',
+                        cwd=infra_dir,
                         capture_output=True,
                         text=True,
                         timeout=300  # 5 minutes timeout
                     )
                     print(f"Terraform cleanup completed: {result.returncode}")
+                    if result.stdout:
+                        print(f"Terraform output: {result.stdout}")
+                    if result.stderr:
+                        print(f"Terraform errors: {result.stderr}")
                 except subprocess.TimeoutExpired:
                     print("Terraform cleanup timed out")
                 except Exception as e:
@@ -299,7 +340,7 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             return {
                 'status': 'error',
-                'message': str(e),
+                'message': f'Failed to start cleanup: {str(e)}',
                 'timestamp': datetime.utcnow().isoformat()
             }
 

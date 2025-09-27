@@ -11,6 +11,8 @@ import os
 import sys
 import json
 import time
+import tempfile
+import shutil
 from datetime import datetime
 from typing import Dict, Any
 import threading
@@ -70,11 +72,19 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
                 
             elif self.path == '/api/logs':
                 result = self.get_logs()
+                print(f"Logs API result: {result}")  # Debug logging
                 self.send_api_response(result)
                 
             elif self.path == '/api/export':
                 result = self.export_results()
+                print(f"Export API result: {result}")  # Debug logging
                 self.send_api_response(result)
+                
+            elif self.path.startswith('/api/download/logs/'):
+                self.download_file('logs', self.path.split('/')[-1])
+                
+            elif self.path.startswith('/api/download/exports/'):
+                self.download_file('exports', self.path.split('/')[-1])
                 
             else:
                 self.send_api_response({'error': 'Not found'}, 404)
@@ -357,8 +367,9 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
         print("Retrieving system logs...")
         
         try:
-            # Create logs directory if it doesn't exist
-            logs_dir = os.path.join(os.path.dirname(__file__), 'logs')
+            # Create temp directory for logs
+            temp_dir = tempfile.gettempdir()
+            logs_dir = os.path.join(temp_dir, 'chaos-guardian', 'logs')
             os.makedirs(logs_dir, exist_ok=True)
             
             # Generate a log file with current system information
@@ -397,10 +408,12 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
                 for scenario in scenarios:
                     f.write(f"- {scenario}: Ready\n")
             
+            filename = os.path.basename(log_file)
             return {
                 'status': 'success',
-                'message': f'Log file created: {os.path.basename(log_file)}',
-                'log_file': log_file,
+                'message': f'Log file created: {filename}',
+                'filename': filename,
+                'download_url': f'/api/download/logs/{filename}',
                 'timestamp': datetime.utcnow().isoformat()
             }
             
@@ -416,8 +429,9 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
         print("Exporting results to CSV...")
         
         try:
-            # Create exports directory if it doesn't exist
-            exports_dir = os.path.join(os.path.dirname(__file__), 'exports')
+            # Create temp directory for exports
+            temp_dir = tempfile.gettempdir()
+            exports_dir = os.path.join(temp_dir, 'chaos-guardian', 'exports')
             os.makedirs(exports_dir, exist_ok=True)
             
             # Generate a CSV file with demo results
@@ -436,10 +450,12 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
                 f.write(f"{datetime.now().isoformat()},Infrastructure,Completed,180s,100%,Yes,Terraform deployment\n")
                 f.write(f"{datetime.now().isoformat()},Slack Integration,Completed,30s,100%,Yes,Bot configured\n")
             
+            filename = os.path.basename(csv_file)
             return {
                 'status': 'success',
-                'message': f'Results exported to CSV: {os.path.basename(csv_file)}',
-                'csv_file': csv_file,
+                'message': f'Results exported to CSV: {filename}',
+                'filename': filename,
+                'download_url': f'/api/download/exports/{filename}',
                 'timestamp': datetime.utcnow().isoformat()
             }
             
@@ -449,6 +465,34 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
                 'message': f'Failed to export results: {str(e)}',
                 'timestamp': datetime.utcnow().isoformat()
             }
+    
+    def download_file(self, file_type: str, filename: str):
+        """Serve file for download"""
+        try:
+            # Create temp directory if it doesn't exist
+            temp_dir = tempfile.gettempdir()
+            file_dir = os.path.join(temp_dir, 'chaos-guardian', file_type)
+            
+            file_path = os.path.join(file_dir, filename)
+            
+            if not os.path.exists(file_path):
+                self.send_error(404, "File not found")
+                return
+            
+            # Set headers for file download
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            
+            # Read and send file
+            with open(file_path, 'rb') as f:
+                shutil.copyfileobj(f, self.wfile)
+                
+        except Exception as e:
+            print(f"Download error: {e}")
+            self.send_error(500, f"Download failed: {str(e)}")
 
 def start_server(port: int = 8080):
     """Start the web server"""

@@ -719,17 +719,34 @@
                 },
                 body: JSON.stringify({ action: 'get_logs' })
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Logs API response:', data);
                 if (data.status === 'success') {
                     addLogEntry('success', `Log file created: ${data.message}`);
-                    // In a real implementation, you could open the log file or display its contents
-                    console.log('Log file location:', data.log_file);
+                    // Trigger download
+                    if (data.download_url) {
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = data.download_url;
+                        downloadLink.download = data.filename;
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
+                        document.body.removeChild(downloadLink);
+                        addLogEntry('success', `Download started: ${data.filename}`);
+                    }
                 } else {
-                    addLogEntry('error', `Failed to create logs: ${data.message}`);
+                    addLogEntry('error', `Failed to create logs: ${data.message || 'Unknown error'}`);
                 }
             })
             .catch(error => {
+                console.error('Log retrieval error:', error);
                 addLogEntry('error', `Log retrieval failed: ${error.message}`);
             });
         }
@@ -745,17 +762,33 @@
                 },
                 body: JSON.stringify({ action: 'export' })
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Export response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Export API response:', data);
                 if (data.status === 'success') {
                     addLogEntry('success', `Results exported to CSV: ${data.message}`);
-                    // In a real implementation, you could trigger a download or show the file location
-                    console.log('CSV file location:', data.csv_file);
+                    // Trigger download
+                    if (data.download_url) {
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = data.download_url;
+                        downloadLink.download = data.filename;
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
+                        document.body.removeChild(downloadLink);
+                        addLogEntry('success', `Download started: ${data.filename}`);
+                    }
                 } else {
-                    addLogEntry('error', `Export failed: ${data.message}`);
+                    addLogEntry('error', `Export failed: ${data.message || 'Unknown error'}`);
                 }
             })
             .catch(error => {
+                console.error('Export error:', error);
                 addLogEntry('error', `Export failed: ${error.message}`);
             });
         }

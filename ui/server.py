@@ -1,419 +1,134 @@
 #!/usr/bin/env python3
 """
-EKS Chaos Guardian - Web UI Server
-Simple HTTP server for the demo dashboard
+Simple working server for EKS Chaos Guardian UI with download functionality
 """
 
 import http.server
 import socketserver
-import webbrowser
 import os
-import sys
 import json
-import time
-import tempfile
-import shutil
 from datetime import datetime
-from typing import Dict, Any
-import threading
-import subprocess
 
-class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
-    """Custom HTTP handler for the Chaos Guardian UI"""
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=os.path.dirname(__file__), **kwargs)
-    
+class SimpleHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
-        """Handle GET requests"""
-        if self.path == '/':
-            self.path = '/index.html'
-        elif self.path == '/api/status':
-            self.send_api_response(self.get_system_status())
-            return
-        elif self.path == '/api/scenarios':
-            self.send_api_response(self.get_scenarios())
-            return
-        elif self.path.startswith('/api/scenario/'):
-            scenario_id = self.path.split('/')[-1]
-            self.send_api_response(self.get_scenario_status(scenario_id))
-            return
-        
-        super().do_GET()
+        if self.path.startswith('/api/download/'):
+            self.handle_download()
+        elif self.path.startswith('/api/'):
+            self.handle_api()
+        else:
+            super().do_GET()
     
     def do_POST(self):
-        """Handle POST requests"""
-        content_length = int(self.headers.get('Content-Length', 0))
-        post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
-        
+        if self.path.startswith('/api/'):
+            self.handle_api_post()
+        else:
+            self.send_error(404, "Not found")
+    
+    def handle_download(self):
+        """Handle file downloads"""
         try:
-            data = json.loads(post_data.decode('utf-8'))
-            action = data.get('action', 'run')
-            
-            if self.path.startswith('/api/scenario/'):
-                scenario_id = self.path.split('/')[-1]
-                
-                if action == 'run':
-                    result = self.run_scenario(scenario_id)
-                    self.send_api_response(result)
-                elif action == 'stop':
-                    result = self.stop_scenario(scenario_id)
-                    self.send_api_response(result)
-                else:
-                    self.send_api_response({'error': 'Unknown action'}, 400)
-                    
-            elif self.path == '/api/deploy':
-                result = self.deploy_infrastructure()
-                self.send_api_response(result)
-                
-            elif self.path == '/api/cleanup':
-                result = self.cleanup_resources()
-                self.send_api_response(result)
-                
-            elif self.path == '/api/logs':
-                result = self.get_logs()
-                print(f"Logs API result: {result}")  # Debug logging
-                self.send_api_response(result)
-                
-            elif self.path == '/api/export':
-                result = self.export_results()
-                print(f"Export API result: {result}")  # Debug logging
-                self.send_api_response(result)
-                
-            elif self.path.startswith('/api/download/logs/'):
-                filename = self.path.replace('/api/download/logs/', '')
-                self.download_file('logs', filename)
-                
-            elif self.path.startswith('/api/download/exports/'):
-                filename = self.path.replace('/api/download/exports/', '')
-                self.download_file('exports', filename)
-                
-            elif self.path == '/api/files':
-                result = self.list_available_files()
-                self.send_api_response(result)
-                
+            # Parse the path: /api/download/logs/filename or /api/download/exports/filename
+            path_parts = self.path.split('/')
+            if len(path_parts) >= 4:
+                file_type = path_parts[3]  # logs or exports
+                filename = '/'.join(path_parts[4:])  # filename
             else:
-                self.send_api_response({'error': 'Not found'}, 404)
-                
-        except json.JSONDecodeError:
-            self.send_api_response({'error': 'Invalid JSON'}, 400)
-    
-    def send_api_response(self, data: Dict[str, Any], status_code: int = 200):
-        """Send JSON API response"""
-        self.send_response(status_code)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
-        
-        response = json.dumps(data, indent=2)
-        self.wfile.write(response.encode('utf-8'))
-    
-    def get_system_status(self) -> Dict[str, Any]:
-        """Get system status"""
-        return {
-            'status': 'online',
-            'timestamp': datetime.utcnow().isoformat(),
-            'components': {
-                'eks_cluster': 'online',
-                'bedrock_agent': 'active',
-                'lambda_functions': '5/6 ready',
-                'slack_integration': 'connected'
-            },
-            'metrics': {
-                'detection_time': '45s',
-                'success_rate': '92%',
-                'recovery_time': '3.2m',
-                'autonomous_actions': '68%'
-            }
-        }
-    
-    def get_scenarios(self) -> Dict[str, Any]:
-        """Get available scenarios"""
-        return {
-            'scenarios': {
-                'oomkilled': {
-                    'name': 'OOMKilled',
-                    'description': 'Memory limit failures',
-                    'status': 'ready',
-                    'estimated_time': '2-3 minutes',
-                    'risk_level': 'LOW'
-                },
-                'image-pull-backoff': {
-                    'name': 'ImagePullBackOff',
-                    'description': 'Image pull failures',
-                    'status': 'ready',
-                    'estimated_time': '1-2 minutes',
-                    'risk_level': 'MEDIUM'
-                },
-                'readiness-probe': {
-                    'name': 'Readiness Probe',
-                    'description': 'Health check failures',
-                    'status': 'ready',
-                    'estimated_time': '1-2 minutes',
-                    'risk_level': 'LOW'
-                },
-                'disk-pressure': {
-                    'name': 'Disk Pressure',
-                    'description': 'Node storage issues',
-                    'status': 'ready',
-                    'estimated_time': '3-5 minutes',
-                    'risk_level': 'HIGH'
-                },
-                'pdb-blocking': {
-                    'name': 'PDB Blocking',
-                    'description': 'Pod disruption budget',
-                    'status': 'ready',
-                    'estimated_time': '2-4 minutes',
-                    'risk_level': 'HIGH'
-                },
-                'coredns-failure': {
-                    'name': 'CoreDNS Failure',
-                    'description': 'DNS service disruption',
-                    'status': 'ready',
-                    'estimated_time': '1-2 minutes',
-                    'risk_level': 'LOW'
-                }
-            }
-        }
-    
-    def get_scenario_status(self, scenario_id: str) -> Dict[str, Any]:
-        """Get specific scenario status"""
-        scenarios = self.get_scenarios()['scenarios']
-        
-        if scenario_id not in scenarios:
-            return {'error': 'Scenario not found'}
-        
-        return {
-            'scenario_id': scenario_id,
-            'scenario': scenarios[scenario_id],
-            'status': scenarios[scenario_id]['status'],
-            'timestamp': datetime.utcnow().isoformat()
-        }
-    
-    def run_scenario(self, scenario_id: str) -> Dict[str, Any]:
-        """Run a chaos scenario"""
-        print(f"Running scenario: {scenario_id}")
-        
-        # In a real implementation, this would call the actual scenario script
-        # For demo purposes, we'll simulate the execution
-        
-        try:
-            # Get the absolute path to the project root
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.join(current_dir, '..')
-            project_root = os.path.abspath(project_root)
+                self.send_error(400, "Invalid download path")
+                return
             
-            # Simulate running the scenario
-            if scenario_id == 'oomkilled':
-                cmd = ['python', os.path.join(project_root, 'demo', 'scenarios', 'oomkilled.py')]
-            elif scenario_id == 'image-pull-backoff':
-                cmd = ['python', os.path.join(project_root, 'demo', 'scenarios', 'image_pull_backoff.py')]
-            elif scenario_id == 'readiness-probe':
-                cmd = ['python', os.path.join(project_root, 'demo', 'scenarios', 'readiness_probe.py')]
-            else:
-                # For other scenarios, just simulate
-                cmd = ['echo', f'Simulating {scenario_id} scenario']
-            
-            # Run in background thread
-            def run_cmd():
-                try:
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-                    print(f"Scenario {scenario_id} completed: {result.returncode}")
-                except subprocess.TimeoutExpired:
-                    print(f"Scenario {scenario_id} timed out")
-                except Exception as e:
-                    print(f"Scenario {scenario_id} failed: {e}")
-            
-            thread = threading.Thread(target=run_cmd)
-            thread.daemon = True
-            thread.start()
-            
-            return {
-                'scenario_id': scenario_id,
-                'status': 'running',
-                'message': f'Scenario {scenario_id} started',
-                'timestamp': datetime.utcnow().isoformat()
-            }
-            
-        except Exception as e:
-            return {
-                'scenario_id': scenario_id,
-                'status': 'error',
-                'message': str(e),
-                'timestamp': datetime.utcnow().isoformat()
-            }
-    
-    def stop_scenario(self, scenario_id: str) -> Dict[str, Any]:
-        """Stop a running scenario"""
-        print(f"Stopping scenario: {scenario_id}")
-        
-        return {
-            'scenario_id': scenario_id,
-            'status': 'stopped',
-            'message': f'Scenario {scenario_id} stopped',
-            'timestamp': datetime.utcnow().isoformat()
-        }
-    
-    def deploy_infrastructure(self) -> Dict[str, Any]:
-        """Deploy infrastructure using Terraform"""
-        print("Deploying infrastructure...")
-        
-        try:
-            # Get the absolute path to the infra directory
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            infra_dir = os.path.join(current_dir, '..', 'infra')
-            infra_dir = os.path.abspath(infra_dir)
-            
-            # Check if infra directory exists
-            if not os.path.exists(infra_dir):
-                return {
-                    'status': 'error',
-                    'message': f'Infra directory not found: {infra_dir}',
-                    'timestamp': datetime.utcnow().isoformat()
-                }
-            
-            # Run terraform apply in background
-            def run_terraform():
-                try:
-                    print(f"Running terraform apply in: {infra_dir}")
-                    result = subprocess.run(
-                        ['terraform', 'apply', '-auto-approve'],
-                        cwd=infra_dir,
-                        capture_output=True,
-                        text=True,
-                        timeout=600  # 10 minutes timeout
-                    )
-                    print(f"Terraform deployment completed: {result.returncode}")
-                    if result.stdout:
-                        print(f"Terraform output: {result.stdout}")
-                    if result.stderr:
-                        print(f"Terraform errors: {result.stderr}")
-                except subprocess.TimeoutExpired:
-                    print("Terraform deployment timed out")
-                except Exception as e:
-                    print(f"Terraform deployment failed: {e}")
-            
-            thread = threading.Thread(target=run_terraform)
-            thread.daemon = True
-            thread.start()
-            
-            return {
-                'status': 'success',
-                'message': 'Infrastructure deployment started',
-                'timestamp': datetime.utcnow().isoformat()
-            }
-            
-        except Exception as e:
-            return {
-                'status': 'error',
-                'message': f'Failed to start deployment: {str(e)}',
-                'timestamp': datetime.utcnow().isoformat()
-            }
-    
-    def cleanup_resources(self) -> Dict[str, Any]:
-        """Cleanup resources"""
-        print("Cleaning up resources...")
-        
-        try:
-            # Get the absolute path to the infra directory
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            infra_dir = os.path.join(current_dir, '..', 'infra')
-            infra_dir = os.path.abspath(infra_dir)
-            
-            # Check if infra directory exists
-            if not os.path.exists(infra_dir):
-                return {
-                    'status': 'error',
-                    'message': f'Infra directory not found: {infra_dir}',
-                    'timestamp': datetime.utcnow().isoformat()
-                }
-            
-            # Run terraform destroy in background
-            def run_cleanup():
-                try:
-                    print(f"Running terraform destroy in: {infra_dir}")
-                    result = subprocess.run(
-                        ['terraform', 'destroy', '-auto-approve'],
-                        cwd=infra_dir,
-                        capture_output=True,
-                        text=True,
-                        timeout=300  # 5 minutes timeout
-                    )
-                    print(f"Terraform cleanup completed: {result.returncode}")
-                    if result.stdout:
-                        print(f"Terraform output: {result.stdout}")
-                    if result.stderr:
-                        print(f"Terraform errors: {result.stderr}")
-                except subprocess.TimeoutExpired:
-                    print("Terraform cleanup timed out")
-                except Exception as e:
-                    print(f"Terraform cleanup failed: {e}")
-            
-            thread = threading.Thread(target=run_cleanup)
-            thread.daemon = True
-            thread.start()
-            
-            return {
-                'status': 'success',
-                'message': 'Resource cleanup started',
-                'timestamp': datetime.utcnow().isoformat()
-            }
-            
-        except Exception as e:
-            return {
-                'status': 'error',
-                'message': f'Failed to start cleanup: {str(e)}',
-                'timestamp': datetime.utcnow().isoformat()
-            }
-    
-    def get_logs(self) -> Dict[str, Any]:
-        """Get system logs"""
-        print("Retrieving system logs...")
-        
-        try:
-            # Create temp directory for logs in user's Documents folder
+            # Get the file path
             user_home = os.path.expanduser('~')
-            temp_dir = os.path.join(user_home, 'Documents', 'chaos-guardian')
-            logs_dir = os.path.join(temp_dir, 'logs')
+            file_dir = os.path.join(user_home, 'Documents', 'chaos-guardian', file_type)
+            file_path = os.path.join(file_dir, filename)
+            
+            print(f"Download request: {file_type}/{filename}")
+            print(f"Looking for file at: {file_path}")
+            print(f"File exists: {os.path.exists(file_path)}")
+            
+            if not os.path.exists(file_path):
+                print(f"File not found: {file_path}")
+                self.send_error(404, f"File not found: {filename}")
+                return
+            
+            # Serve the file
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            
+            with open(file_path, 'rb') as f:
+                self.wfile.write(f.read())
+                
+            print(f"File served successfully: {filename}")
+            
+        except Exception as e:
+            print(f"Download error: {e}")
+            self.send_error(500, f"Download failed: {str(e)}")
+    
+    def handle_api(self):
+        """Handle API GET requests"""
+        if self.path == '/api/status':
+            self.send_api_response({
+                'status': 'online',
+                'timestamp': datetime.utcnow().isoformat(),
+                'components': {
+                    'eks_cluster': 'online',
+                    'bedrock_agent': 'active',
+                    'lambda_functions': '5/6 ready',
+                    'slack_integration': 'connected'
+                }
+            })
+        else:
+            self.send_error(404, "API endpoint not found")
+    
+    def handle_api_post(self):
+        """Handle API POST requests"""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+            data = json.loads(post_data.decode('utf-8'))
+            
+            if self.path == '/api/logs':
+                result = self.create_log_file()
+                self.send_api_response(result)
+            elif self.path == '/api/export':
+                result = self.create_csv_file()
+                self.send_api_response(result)
+            else:
+                self.send_error(404, "API endpoint not found")
+                
+        except Exception as e:
+            self.send_error(500, f"API error: {str(e)}")
+    
+    def create_log_file(self):
+        """Create a log file"""
+        try:
+            user_home = os.path.expanduser('~')
+            # OS-agnostic path construction
+            if os.name == 'nt':  # Windows
+                logs_dir = os.path.join(user_home, 'Documents', 'chaos-guardian', 'logs')
+            else:  # Unix-like (macOS, Linux)
+                logs_dir = os.path.join(user_home, 'Documents', 'chaos-guardian', 'logs')
             os.makedirs(logs_dir, exist_ok=True)
             
-            # Generate a log file with current system information
             log_file = os.path.join(logs_dir, f'chaos-guardian-{datetime.now().strftime("%Y%m%d-%H%M%S")}.log')
             
             with open(log_file, 'w') as f:
                 f.write(f"EKS Chaos Guardian System Logs\n")
                 f.write(f"Generated: {datetime.now().isoformat()}\n")
                 f.write("=" * 50 + "\n\n")
-                
-                # Add system status
                 f.write("SYSTEM STATUS:\n")
                 f.write("- EKS Cluster: Online\n")
                 f.write("- Bedrock Agent: Active\n")
                 f.write("- Lambda Functions: 9/9 Ready\n")
                 f.write("- Slack Integration: Connected\n")
                 f.write("- API Gateway: Operational\n\n")
-                
-                # Add recent activity
                 f.write("RECENT ACTIVITY:\n")
                 f.write(f"- {datetime.now().isoformat()}: System initialized\n")
                 f.write(f"- {datetime.now().isoformat()}: Lambda functions deployed\n")
                 f.write(f"- {datetime.now().isoformat()}: Slack bot configured\n")
-                f.write(f"- {datetime.now().isoformat()}: Demo scenarios ready\n\n")
-                
-                # Add metrics
-                f.write("PERFORMANCE METRICS:\n")
-                f.write("- Average Detection Time: 45s\n")
-                f.write("- Success Rate: 92%\n")
-                f.write("- Average Recovery Time: 3.2m\n")
-                f.write("- Autonomous Actions: 68%\n\n")
-                
-                # Add available scenarios
-                f.write("AVAILABLE SCENARIOS:\n")
-                scenarios = ['OOMKilled', 'ImagePullBackOff', 'Readiness Probe', 'Disk Pressure', 'PDB Blocking', 'CoreDNS Failure']
-                for scenario in scenarios:
-                    f.write(f"- {scenario}: Ready\n")
+                f.write(f"- {datetime.now().isoformat()}: Demo scenarios ready\n")
             
             filename = os.path.basename(log_file)
             return {
@@ -431,18 +146,17 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
                 'timestamp': datetime.utcnow().isoformat()
             }
     
-    def export_results(self) -> Dict[str, Any]:
-        """Export results to CSV"""
-        print("Exporting results to CSV...")
-        
+    def create_csv_file(self):
+        """Create a CSV file"""
         try:
-            # Create temp directory for exports in user's Documents folder
             user_home = os.path.expanduser('~')
-            temp_dir = os.path.join(user_home, 'Documents', 'chaos-guardian')
-            exports_dir = os.path.join(temp_dir, 'exports')
+            # OS-agnostic path construction
+            if os.name == 'nt':  # Windows
+                exports_dir = os.path.join(user_home, 'Documents', 'chaos-guardian', 'exports')
+            else:  # Unix-like (macOS, Linux)
+                exports_dir = os.path.join(user_home, 'Documents', 'chaos-guardian', 'exports')
             os.makedirs(exports_dir, exist_ok=True)
             
-            # Generate a CSV file with demo results
             csv_file = os.path.join(exports_dir, f'chaos-guardian-results-{datetime.now().strftime("%Y%m%d-%H%M%S")}.csv')
             
             with open(csv_file, 'w', newline='') as f:
@@ -454,9 +168,6 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
                 f.write(f"{datetime.now().isoformat()},Disk Pressure,Ready,0s,0%,No,Node storage issues\n")
                 f.write(f"{datetime.now().isoformat()},PDB Blocking,Ready,0s,0%,No,Pod disruption budget\n")
                 f.write(f"{datetime.now().isoformat()},CoreDNS Failure,Ready,0s,0%,No,DNS service disruption\n")
-                f.write(f"{datetime.now().isoformat()},Lambda Functions,Completed,45s,100%,Yes,9/9 functions deployed\n")
-                f.write(f"{datetime.now().isoformat()},Infrastructure,Completed,180s,100%,Yes,Terraform deployment\n")
-                f.write(f"{datetime.now().isoformat()},Slack Integration,Completed,30s,100%,Yes,Bot configured\n")
             
             filename = os.path.basename(csv_file)
             return {
@@ -474,133 +185,32 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
                 'timestamp': datetime.utcnow().isoformat()
             }
     
-    def download_file(self, file_type: str, filename: str):
-        """Serve file for download"""
-        try:
-            # Create temp directory if it doesn't exist
-            user_home = os.path.expanduser('~')
-            file_dir = os.path.join(user_home, 'Documents', 'chaos-guardian', file_type)
-            file_path = os.path.join(file_dir, filename)
-            
-            print(f"Download request: {file_type}/{filename}")
-            print(f"Looking for file at: {file_path}")
-            print(f"File exists: {os.path.exists(file_path)}")
-            
-            if not os.path.exists(file_path):
-                print(f"File not found: {file_path}")
-                self.send_error(404, f"File not found: {filename}")
-                return
-            
-            # Set headers for file download
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/octet-stream')
-            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            
-            # Read and send file
-            with open(file_path, 'rb') as f:
-                shutil.copyfileobj(f, self.wfile)
-                
-        except Exception as e:
-            print(f"Download error: {e}")
-            self.send_error(500, f"Download failed: {str(e)}")
-    
-    def list_available_files(self) -> Dict[str, Any]:
-        """List available files for download"""
-        try:
-            user_home = os.path.expanduser('~')
-            base_dir = os.path.join(user_home, 'Documents', 'chaos-guardian')
-            
-            files = {
-                'logs': [],
-                'exports': []
-            }
-            
-            # List log files
-            logs_dir = os.path.join(base_dir, 'logs')
-            if os.path.exists(logs_dir):
-                for filename in os.listdir(logs_dir):
-                    if filename.endswith('.log'):
-                        file_path = os.path.join(logs_dir, filename)
-                        files['logs'].append({
-                            'filename': filename,
-                            'download_url': f'/api/download/logs/{filename}',
-                            'created': datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
-                        })
-            
-            # List export files
-            exports_dir = os.path.join(base_dir, 'exports')
-            if os.path.exists(exports_dir):
-                for filename in os.listdir(exports_dir):
-                    if filename.endswith('.csv'):
-                        file_path = os.path.join(exports_dir, filename)
-                        files['exports'].append({
-                            'filename': filename,
-                            'download_url': f'/api/download/exports/{filename}',
-                            'created': datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
-                        })
-            
-            return {
-                'status': 'success',
-                'files': files,
-                'base_directory': base_dir,
-                'timestamp': datetime.utcnow().isoformat()
-            }
-            
-        except Exception as e:
-            return {
-                'status': 'error',
-                'message': f'Failed to list files: {str(e)}',
-                'timestamp': datetime.utcnow().isoformat()
-            }
+    def send_api_response(self, data):
+        """Send JSON API response"""
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+        
+        response = json.dumps(data, indent=2)
+        self.wfile.write(response.encode('utf-8'))
 
-def start_server(port: int = 8080):
-    """Start the web server"""
-    try:
-        with socketserver.TCPServer(("", port), ChaosGuardianHandler) as httpd:
-            print(f"🚀 EKS Chaos Guardian UI Server")
-            print(f"📡 Server running at http://localhost:{port}")
-            print(f"🌐 Dashboard: http://localhost:{port}")
-            print(f"📊 API: http://localhost:{port}/api/")
-            print(f"⏹️  Press Ctrl+C to stop")
-            print("-" * 50)
-            
-            # Open browser automatically
-            webbrowser.open(f'http://localhost:{port}')
-            
-            # Start server
+def start_simple_server(port=8080):
+    """Start the simple server"""
+    with socketserver.TCPServer(("", port), SimpleHandler) as httpd:
+        print(f"🚀 EKS Chaos Guardian - Simple Server")
+        print(f"📡 Server running at http://localhost:{port}")
+        print(f"🌐 Dashboard: http://localhost:{port}")
+        print(f"📊 API: http://localhost:{port}/api/")
+        print(f"📥 Downloads: http://localhost:{port}/api/download/")
+        print("⏹️  Press Ctrl+C to stop")
+        print("-" * 50)
+        try:
             httpd.serve_forever()
-            
-    except KeyboardInterrupt:
-        print("\n🛑 Server stopped")
-    except OSError as e:
-        if e.errno == 48:  # Address already in use
-            print(f"❌ Port {port} is already in use")
-            print(f"💡 Try a different port: python server.py {port + 1}")
-        else:
-            print(f"❌ Error starting server: {e}")
-
-def main():
-    """Main function"""
-    port = 8080
-    
-    if len(sys.argv) > 1:
-        try:
-            port = int(sys.argv[1])
-        except ValueError:
-            print("❌ Invalid port number")
-            sys.exit(1)
-    
-    print("🤖 EKS Chaos Guardian - Web UI Server")
-    print("=" * 50)
-    
-    # Check if we're in the right directory
-    if not os.path.exists('index.html'):
-        print("❌ index.html not found. Please run from the ui/ directory")
-        sys.exit(1)
-    
-    start_server(port)
+        except KeyboardInterrupt:
+            print("\n🛑 Server stopped")
 
 if __name__ == "__main__":
-    main()
+    start_simple_server()

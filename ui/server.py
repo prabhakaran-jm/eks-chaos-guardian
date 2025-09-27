@@ -86,6 +86,10 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
             elif self.path.startswith('/api/download/exports/'):
                 self.download_file('exports', self.path.split('/')[-1])
                 
+            elif self.path == '/api/files':
+                result = self.list_available_files()
+                self.send_api_response(result)
+                
             else:
                 self.send_api_response({'error': 'Not found'}, 404)
                 
@@ -367,9 +371,10 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
         print("Retrieving system logs...")
         
         try:
-            # Create temp directory for logs
-            temp_dir = tempfile.gettempdir()
-            logs_dir = os.path.join(temp_dir, 'chaos-guardian', 'logs')
+            # Create temp directory for logs in user's Documents folder
+            user_home = os.path.expanduser('~')
+            temp_dir = os.path.join(user_home, 'Documents', 'chaos-guardian')
+            logs_dir = os.path.join(temp_dir, 'logs')
             os.makedirs(logs_dir, exist_ok=True)
             
             # Generate a log file with current system information
@@ -429,9 +434,10 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
         print("Exporting results to CSV...")
         
         try:
-            # Create temp directory for exports
-            temp_dir = tempfile.gettempdir()
-            exports_dir = os.path.join(temp_dir, 'chaos-guardian', 'exports')
+            # Create temp directory for exports in user's Documents folder
+            user_home = os.path.expanduser('~')
+            temp_dir = os.path.join(user_home, 'Documents', 'chaos-guardian')
+            exports_dir = os.path.join(temp_dir, 'exports')
             os.makedirs(exports_dir, exist_ok=True)
             
             # Generate a CSV file with demo results
@@ -470,8 +476,8 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
         """Serve file for download"""
         try:
             # Create temp directory if it doesn't exist
-            temp_dir = tempfile.gettempdir()
-            file_dir = os.path.join(temp_dir, 'chaos-guardian', file_type)
+            user_home = os.path.expanduser('~')
+            file_dir = os.path.join(user_home, 'Documents', 'chaos-guardian', file_type)
             
             file_path = os.path.join(file_dir, filename)
             
@@ -493,6 +499,55 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             print(f"Download error: {e}")
             self.send_error(500, f"Download failed: {str(e)}")
+    
+    def list_available_files(self) -> Dict[str, Any]:
+        """List available files for download"""
+        try:
+            user_home = os.path.expanduser('~')
+            base_dir = os.path.join(user_home, 'Documents', 'chaos-guardian')
+            
+            files = {
+                'logs': [],
+                'exports': []
+            }
+            
+            # List log files
+            logs_dir = os.path.join(base_dir, 'logs')
+            if os.path.exists(logs_dir):
+                for filename in os.listdir(logs_dir):
+                    if filename.endswith('.log'):
+                        file_path = os.path.join(logs_dir, filename)
+                        files['logs'].append({
+                            'filename': filename,
+                            'download_url': f'/api/download/logs/{filename}',
+                            'created': datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
+                        })
+            
+            # List export files
+            exports_dir = os.path.join(base_dir, 'exports')
+            if os.path.exists(exports_dir):
+                for filename in os.listdir(exports_dir):
+                    if filename.endswith('.csv'):
+                        file_path = os.path.join(exports_dir, filename)
+                        files['exports'].append({
+                            'filename': filename,
+                            'download_url': f'/api/download/exports/{filename}',
+                            'created': datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
+                        })
+            
+            return {
+                'status': 'success',
+                'files': files,
+                'base_directory': base_dir,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f'Failed to list files: {str(e)}',
+                'timestamp': datetime.utcnow().isoformat()
+            }
 
 def start_server(port: int = 8080):
     """Start the web server"""

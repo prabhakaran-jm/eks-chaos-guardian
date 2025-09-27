@@ -731,15 +731,11 @@
                 console.log('Logs API response:', data);
                 if (data.status === 'success') {
                     addLogEntry('success', `Log file created: ${data.message}`);
-                    // Trigger download
+                    // Show download link
                     if (data.download_url) {
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = data.download_url;
-                        downloadLink.download = data.filename;
-                        document.body.appendChild(downloadLink);
-                        downloadLink.click();
-                        document.body.removeChild(downloadLink);
-                        addLogEntry('success', `Download started: ${data.filename}`);
+                        addLogEntry('info', `Download available: ${data.filename}`);
+                        // Create a visible download button and add it to the main controls
+                        createDownloadButton('logs', data.filename, data.download_url);
                     }
                 } else {
                     addLogEntry('error', `Failed to create logs: ${data.message || 'Unknown error'}`);
@@ -773,15 +769,11 @@
                 console.log('Export API response:', data);
                 if (data.status === 'success') {
                     addLogEntry('success', `Results exported to CSV: ${data.message}`);
-                    // Trigger download
+                    // Show download link
                     if (data.download_url) {
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = data.download_url;
-                        downloadLink.download = data.filename;
-                        document.body.appendChild(downloadLink);
-                        downloadLink.click();
-                        document.body.removeChild(downloadLink);
-                        addLogEntry('success', `Download started: ${data.filename}`);
+                        addLogEntry('info', `Download available: ${data.filename}`);
+                        // Create a visible download button and add it to the main controls
+                        createDownloadButton('exports', data.filename, data.download_url);
                     }
                 } else {
                     addLogEntry('error', `Export failed: ${data.message || 'Unknown error'}`);
@@ -791,6 +783,85 @@
                 console.error('Export error:', error);
                 addLogEntry('error', `Export failed: ${error.message}`);
             });
+        }
+
+        function createDownloadButton(type, filename, downloadUrl) {
+            // Create a visible download button
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = `📥 Download ${filename}`;
+            downloadBtn.className = 'download-btn';
+            downloadBtn.style.cssText = `
+                display: block;
+                margin: 10px auto;
+                padding: 10px 20px;
+                background: ${type === 'logs' ? '#007bff' : '#28a745'};
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: bold;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                transition: background-color 0.3s;
+            `;
+            
+            downloadBtn.onmouseover = () => {
+                downloadBtn.style.backgroundColor = type === 'logs' ? '#0056b3' : '#1e7e34';
+            };
+            downloadBtn.onmouseout = () => {
+                downloadBtn.style.backgroundColor = type === 'logs' ? '#007bff' : '#28a745';
+            };
+            
+            downloadBtn.onclick = () => {
+                console.log('Downloading:', downloadUrl);
+                // Try multiple download methods
+                try {
+                    // Method 1: Direct window.open
+                    window.open(downloadUrl, '_blank');
+                } catch (e) {
+                    console.error('Download failed:', e);
+                    // Method 2: Create temporary link
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = filename;
+                    link.target = '_blank';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+            };
+            
+            // Add to downloads section or create one
+            let downloadsSection = document.getElementById('downloads-section');
+            if (!downloadsSection) {
+                downloadsSection = document.createElement('div');
+                downloadsSection.id = 'downloads-section';
+                downloadsSection.style.cssText = `
+                    margin: 20px 0;
+                    padding: 15px;
+                    background: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 5px;
+                `;
+                
+                const downloadsTitle = document.createElement('h4');
+                downloadsTitle.textContent = '📁 Available Downloads';
+                downloadsTitle.style.cssText = 'margin: 0 0 10px 0; color: #495057;';
+                downloadsSection.appendChild(downloadsTitle);
+                
+                // Insert after the main controls
+                const mainControls = document.querySelector('.controls');
+                if (mainControls) {
+                    mainControls.parentNode.insertBefore(downloadsSection, mainControls.nextSibling);
+                }
+            }
+            
+            downloadsSection.appendChild(downloadBtn);
+            
+            // Add a separator
+            const separator = document.createElement('div');
+            separator.style.cssText = 'height: 10px;';
+            downloadsSection.appendChild(separator);
         }
 
         // Initialize

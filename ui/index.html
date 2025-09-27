@@ -733,9 +733,12 @@
                     addLogEntry('success', `Log file created: ${data.message}`);
                     // Show download link
                     if (data.download_url) {
+                        console.log('Logs download URL available:', data.download_url);
                         addLogEntry('info', `Download available: ${data.filename}`);
                         // Create a visible download button and add it to the main controls
                         createDownloadButton('logs', data.filename, data.download_url);
+                    } else {
+                        console.error('No download URL in logs response:', data);
                     }
                 } else {
                     addLogEntry('error', `Failed to create logs: ${data.message || 'Unknown error'}`);
@@ -771,9 +774,12 @@
                     addLogEntry('success', `Results exported to CSV: ${data.message}`);
                     // Show download link
                     if (data.download_url) {
+                        console.log('Export download URL available:', data.download_url);
                         addLogEntry('info', `Download available: ${data.filename}`);
                         // Create a visible download button and add it to the main controls
                         createDownloadButton('exports', data.filename, data.download_url);
+                    } else {
+                        console.error('No download URL in export response:', data);
                     }
                 } else {
                     addLogEntry('error', `Export failed: ${data.message || 'Unknown error'}`);
@@ -786,6 +792,7 @@
         }
 
         function createDownloadButton(type, filename, downloadUrl) {
+            console.log('Creating download button:', {type, filename, downloadUrl});
             // Create a visible download button
             const downloadBtn = document.createElement('button');
             downloadBtn.textContent = `📥 Download ${filename}`;
@@ -834,25 +841,33 @@
             // Add to downloads section or create one
             let downloadsSection = document.getElementById('downloads-section');
             if (!downloadsSection) {
+                console.log('Creating downloads section...');
                 downloadsSection = document.createElement('div');
                 downloadsSection.id = 'downloads-section';
                 downloadsSection.style.cssText = `
                     margin: 20px 0;
                     padding: 15px;
                     background: #f8f9fa;
-                    border: 1px solid #dee2e6;
-                    border-radius: 5px;
+                    border: 2px solid #007bff;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
                 `;
                 
                 const downloadsTitle = document.createElement('h4');
                 downloadsTitle.textContent = '📁 Available Downloads';
-                downloadsTitle.style.cssText = 'margin: 0 0 10px 0; color: #495057;';
+                downloadsTitle.style.cssText = 'margin: 0 0 15px 0; color: #495057; font-size: 18px; font-weight: bold;';
                 downloadsSection.appendChild(downloadsTitle);
                 
                 // Insert after the main controls
-                const mainControls = document.querySelector('.controls');
+                const mainControls = document.querySelector('.control-panel');
+                console.log('Found main controls:', mainControls);
                 if (mainControls) {
                     mainControls.parentNode.insertBefore(downloadsSection, mainControls.nextSibling);
+                    console.log('Downloads section inserted after control panel');
+                } else {
+                    console.error('Could not find control panel to insert downloads section');
+                    // Fallback: append to body
+                    document.body.appendChild(downloadsSection);
                 }
             }
             

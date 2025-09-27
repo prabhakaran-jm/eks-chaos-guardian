@@ -81,10 +81,12 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_api_response(result)
                 
             elif self.path.startswith('/api/download/logs/'):
-                self.download_file('logs', self.path.split('/')[-1])
+                filename = self.path.replace('/api/download/logs/', '')
+                self.download_file('logs', filename)
                 
             elif self.path.startswith('/api/download/exports/'):
-                self.download_file('exports', self.path.split('/')[-1])
+                filename = self.path.replace('/api/download/exports/', '')
+                self.download_file('exports', filename)
                 
             elif self.path == '/api/files':
                 result = self.list_available_files()
@@ -478,11 +480,15 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
             # Create temp directory if it doesn't exist
             user_home = os.path.expanduser('~')
             file_dir = os.path.join(user_home, 'Documents', 'chaos-guardian', file_type)
-            
             file_path = os.path.join(file_dir, filename)
             
+            print(f"Download request: {file_type}/{filename}")
+            print(f"Looking for file at: {file_path}")
+            print(f"File exists: {os.path.exists(file_path)}")
+            
             if not os.path.exists(file_path):
-                self.send_error(404, "File not found")
+                print(f"File not found: {file_path}")
+                self.send_error(404, f"File not found: {filename}")
                 return
             
             # Set headers for file download

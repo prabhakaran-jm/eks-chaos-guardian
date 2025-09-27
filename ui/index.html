@@ -793,6 +793,19 @@
 
         function createDownloadButton(type, filename, downloadUrl) {
             console.log('Creating download button:', {type, filename, downloadUrl});
+            
+            // Test if the download URL is accessible
+            fetch(downloadUrl, { method: 'HEAD' })
+                .then(response => {
+                    console.log(`Download URL test for ${filename}:`, response.status);
+                    if (response.status !== 200) {
+                        console.error(`Download URL not accessible: ${downloadUrl}`);
+                    }
+                })
+                .catch(error => {
+                    console.error(`Download URL test failed: ${error}`);
+                });
+            
             // Create a visible download button
             const downloadBtn = document.createElement('button');
             downloadBtn.textContent = `📥 Download ${filename}`;

@@ -30,30 +30,112 @@ kubectl get pods --all-namespaces
 ### 2. **Lambda Function Testing**
 
 #### Test Individual Lambda Functions
+
+**For Unix/Linux/macOS (Bash/Zsh):**
 ```bash
 # Test fault injection functions
-aws lambda invoke --function-name eks-chaos-guardian-node-failure --payload '{"cluster":"eks-chaos-guardian-autopilot","dry_run":true}' response.json --profile eks-chaos-guardian
+aws lambda invoke --function-name eks-chaos-guardian-node-failure \
+  --payload '{"cluster":"eks-chaos-guardian-autopilot","dry_run":true}' \
+  response.json --profile eks-chaos-guardian
 
-aws lambda invoke --function-name eks-chaos-guardian-pod-eviction --payload '{"cluster":"eks-chaos-guardian-autopilot","namespace":"default","dry_run":true}' response.json --profile eks-chaos-guardian
+aws lambda invoke --function-name eks-chaos-guardian-pod-eviction \
+  --payload '{"cluster":"eks-chaos-guardian-autopilot","namespace":"default","dry_run":true}' \
+  response.json --profile eks-chaos-guardian
 
-aws lambda invoke --function-name eks-chaos-guardian-network-latency --payload '{"cluster":"eks-chaos-guardian-autopilot","latency_ms":100,"dry_run":true}' response.json --profile eks-chaos-guardian
+aws lambda invoke --function-name eks-chaos-guardian-network-latency \
+  --payload '{"cluster":"eks-chaos-guardian-autopilot","latency_ms":100,"dry_run":true}' \
+  response.json --profile eks-chaos-guardian
 
-aws lambda invoke --function-name eks-chaos-guardian-api-throttling --payload '{"cluster":"eks-chaos-guardian-autopilot","throttle_rate":0.5,"dry_run":true}' response.json --profile eks-chaos-guardian
+aws lambda invoke --function-name eks-chaos-guardian-api-throttling \
+  --payload '{"cluster":"eks-chaos-guardian-autopilot","throttle_rate":0.5,"dry_run":true}' \
+  response.json --profile eks-chaos-guardian
+```
+
+**For Windows PowerShell:**
+```powershell
+# Test fault injection functions (PowerShell requires JSON escaping)
+aws lambda invoke --function-name eks-chaos-guardian-node-failure `
+  --payload '{\"cluster\":\"eks-chaos-guardian-autopilot\",\"dry_run\":true}' `
+  response.json --profile eks-chaos-guardian --cli-binary-format raw-in-base64-out
+
+aws lambda invoke --function-name eks-chaos-guardian-pod-eviction `
+  --payload '{\"cluster\":\"eks-chaos-guardian-autopilot\",\"namespace\":\"default\",\"dry_run\":true}' `
+  response.json --profile eks-chaos-guardian --cli-binary-format raw-in-base64-out
+```
+
+**Cross-platform approach using JSON files:**
+```bash
+# Create test payload file
+echo '{"cluster":"eks-chaos-guardian-autopilot","dry_run":true}' > test-payload.json
+
+# Test with file payload (works on all platforms)
+aws lambda invoke --function-name eks-chaos-guardian-node-failure \
+  --payload file://test-payload.json \
+  response.json --profile eks-chaos-guardian
+
+# Clean up
+rm test-payload.json
 ```
 
 #### Test Detection Functions
+
+**Cross-platform approach using JSON files:**
 ```bash
+# Create detection test payload
+cat > logs-test-payload.json << EOF
+{
+  "log_groups": ["/aws/eks/eks-chaos-guardian-autopilot/application"],
+  "query": "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc",
+  "limit": 10
+}
+EOF
+
 # Test log detection
-aws lambda invoke --function-name eks-chaos-guardian-cloudwatch-logs --payload '{"log_groups":["/aws/eks/eks-chaos-guardian-autopilot/application"],"query":"fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc","limit":10}' response.json --profile eks-chaos-guardian
+aws lambda invoke --function-name eks-chaos-guardian-cloudwatch-logs \
+  --payload file://logs-test-payload.json \
+  response.json --profile eks-chaos-guardian
+
+# Create metrics test payload
+cat > metrics-test-payload.json << EOF
+{
+  "namespace": "AWS/EKS",
+  "dimensions": {"ClusterName": "eks-chaos-guardian-autopilot"},
+  "period": 300
+}
+EOF
 
 # Test metrics detection
-aws lambda invoke --function-name eks-chaos-guardian-cloudwatch-metrics --payload '{"namespace":"AWS/EKS","dimensions":{"ClusterName":"eks-chaos-guardian-autopilot"},"period":300}' response.json --profile eks-chaos-guardian
+aws lambda invoke --function-name eks-chaos-guardian-cloudwatch-metrics \
+  --payload file://metrics-test-payload.json \
+  response.json --profile eks-chaos-guardian
+
+# Clean up
+rm logs-test-payload.json metrics-test-payload.json
 ```
 
 #### Test Execution Functions
+
+**Cross-platform approach using JSON files:**
 ```bash
+# Create K8s operations test payload
+cat > k8s-test-payload.json << EOF
+{
+  "operation": "patch_deployment",
+  "cluster": "eks-chaos-guardian-autopilot",
+  "namespace": "default",
+  "resource_name": "test-deployment",
+  "patch": {"spec": {"replicas": 3}},
+  "dry_run": true
+}
+EOF
+
 # Test K8s operations
-aws lambda invoke --function-name eks-chaos-guardian-k8s-operations --payload '{"operation":"patch_deployment","cluster":"eks-chaos-guardian-autopilot","namespace":"default","resource_name":"test-deployment","patch":{"spec":{"replicas":3}},"dry_run":true}' response.json --profile eks-chaos-guardian
+aws lambda invoke --function-name eks-chaos-guardian-k8s-operations \
+  --payload file://k8s-test-payload.json \
+  response.json --profile eks-chaos-guardian
+
+# Clean up
+rm k8s-test-payload.json
 ```
 
 ### 3. **Slack Bot Testing**

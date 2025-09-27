@@ -79,7 +79,6 @@ resource "aws_eks_cluster" "chaos_guardian" {
   # Enable EKS add-ons for cost optimization
   depends_on = [
     aws_iam_role_policy_attachment.cluster_AmazonEKSClusterPolicy,
-    aws_cloudwatch_log_group.cluster,
   ]
 
   tags = local.tags
@@ -172,7 +171,7 @@ resource "aws_iam_role_policy_attachment" "node_group_AmazonEC2ContainerRegistry
 
 # CloudWatch Log Group for EKS
 resource "aws_cloudwatch_log_group" "cluster" {
-  name              = "/aws/eks/${aws_eks_cluster.chaos_guardian.name}/cluster"
+  name              = "/aws/eks/eks-chaos-guardian-autopilot/cluster"
   retention_in_days = 3  # Cost optimization: short retention
 
   tags = local.tags
@@ -281,7 +280,10 @@ resource "aws_iam_policy" "lambda_policy" {
         Effect = "Allow"
         Action = [
           "eks:DescribeCluster",
-          "eks:ListClusters"
+          "eks:ListClusters",
+          "eks:ListNodegroups",
+          "eks:DescribeNodegroup",
+          "eks:ListNodes"
         ]
         Resource = "*"
       },
@@ -324,6 +326,191 @@ resource "aws_lambda_function" "bedrock_agent" {
   runtime         = "python3.9"
   timeout         = 300
   memory_size     = 512
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME      = aws_s3_bucket.chaos_guardian.id
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.runbook_index.name
+      SLACK_WEBHOOK_URL   = var.slack_webhook_url
+    }
+  }
+
+  tags = local.tags
+}
+
+# Fault Injection Lambda Functions
+resource "aws_lambda_function" "node_failure" {
+  filename         = "../lambda/fault-injection/node_failure.py.zip"
+  function_name    = "${local.name}-node-failure"
+  role            = aws_iam_role.lambda_execution_role.arn
+  handler         = "node_failure.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 300
+  memory_size     = 256
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME      = aws_s3_bucket.chaos_guardian.id
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.runbook_index.name
+      SLACK_WEBHOOK_URL   = var.slack_webhook_url
+    }
+  }
+
+  tags = local.tags
+}
+
+resource "aws_lambda_function" "pod_eviction" {
+  filename         = "../lambda/fault-injection/pod_eviction.py.zip"
+  function_name    = "${local.name}-pod-eviction"
+  role            = aws_iam_role.lambda_execution_role.arn
+  handler         = "pod_eviction.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 300
+  memory_size     = 256
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME      = aws_s3_bucket.chaos_guardian.id
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.runbook_index.name
+      SLACK_WEBHOOK_URL   = var.slack_webhook_url
+    }
+  }
+
+  tags = local.tags
+}
+
+resource "aws_lambda_function" "network_latency" {
+  filename         = "../lambda/fault-injection/network_latency.py.zip"
+  function_name    = "${local.name}-network-latency"
+  role            = aws_iam_role.lambda_execution_role.arn
+  handler         = "network_latency.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 300
+  memory_size     = 256
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME      = aws_s3_bucket.chaos_guardian.id
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.runbook_index.name
+      SLACK_WEBHOOK_URL   = var.slack_webhook_url
+    }
+  }
+
+  tags = local.tags
+}
+
+resource "aws_lambda_function" "api_throttling" {
+  filename         = "../lambda/fault-injection/api_throttling.py.zip"
+  function_name    = "${local.name}-api-throttling"
+  role            = aws_iam_role.lambda_execution_role.arn
+  handler         = "api_throttling.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 300
+  memory_size     = 256
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME      = aws_s3_bucket.chaos_guardian.id
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.runbook_index.name
+      SLACK_WEBHOOK_URL   = var.slack_webhook_url
+    }
+  }
+
+  tags = local.tags
+}
+
+# Detection Lambda Functions
+resource "aws_lambda_function" "cloudwatch_logs" {
+  filename         = "../lambda/detection/cloudwatch_logs.py.zip"
+  function_name    = "${local.name}-cloudwatch-logs"
+  role            = aws_iam_role.lambda_execution_role.arn
+  handler         = "cloudwatch_logs.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 300
+  memory_size     = 256
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME      = aws_s3_bucket.chaos_guardian.id
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.runbook_index.name
+      SLACK_WEBHOOK_URL   = var.slack_webhook_url
+    }
+  }
+
+  tags = local.tags
+}
+
+resource "aws_lambda_function" "cloudwatch_metrics" {
+  filename         = "../lambda/detection/cloudwatch_metrics.py.zip"
+  function_name    = "${local.name}-cloudwatch-metrics"
+  role            = aws_iam_role.lambda_execution_role.arn
+  handler         = "cloudwatch_metrics.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 300
+  memory_size     = 256
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME      = aws_s3_bucket.chaos_guardian.id
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.runbook_index.name
+      SLACK_WEBHOOK_URL   = var.slack_webhook_url
+    }
+  }
+
+  tags = local.tags
+}
+
+# Execution Lambda Function
+resource "aws_lambda_function" "k8s_operations" {
+  filename         = "../lambda/execution/k8s_operations.py.zip"
+  function_name    = "${local.name}-k8s-operations"
+  role            = aws_iam_role.lambda_execution_role.arn
+  handler         = "k8s_operations.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 300
+  memory_size     = 256
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME      = aws_s3_bucket.chaos_guardian.id
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.runbook_index.name
+      SLACK_WEBHOOK_URL   = var.slack_webhook_url
+    }
+  }
+
+  tags = local.tags
+}
+
+# Slack Bot Lambda Function
+resource "aws_lambda_function" "slack_bot" {
+  filename         = "../lambda/slack/slack_bot.py.zip"
+  function_name    = "${local.name}-slack-bot"
+  role            = aws_iam_role.lambda_execution_role.arn
+  handler         = "slack_bot.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 300
+  memory_size     = 256
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME      = aws_s3_bucket.chaos_guardian.id
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.runbook_index.name
+      SLACK_WEBHOOK_URL   = var.slack_webhook_url
+    }
+  }
+
+  tags = local.tags
+}
+
+# Runbook Manager Lambda Function
+resource "aws_lambda_function" "runbook_manager" {
+  filename         = "../lambda/runbook/runbook_manager.py.zip"
+  function_name    = "${local.name}-runbook-manager"
+  role            = aws_iam_role.lambda_execution_role.arn
+  handler         = "runbook_manager.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 300
+  memory_size     = 256
 
   environment {
     variables = {

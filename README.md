@@ -44,6 +44,14 @@ EKS Chaos Guardian is an AWS-native agent that:
 - Python 3.9+
 - Slack workspace with webhook URL
 
+### Platform Compatibility
+✅ **Cross-platform support:**
+- **Linux** (Ubuntu, CentOS, RHEL, etc.)
+- **macOS** (Intel & Apple Silicon)
+- **Windows** (PowerShell, WSL, Git Bash)
+
+All scripts and commands are designed to work across platforms using standard tools like AWS CLI, Terraform, and Python.
+
 ### Deployment
 
 ```bash

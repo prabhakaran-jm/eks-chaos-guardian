@@ -1,0 +1,1 @@
+{"statusCode": 200, "body": "{\"correlation_id\": \"24857a32-e4a8-495c-8e3f-dc91a06e414c\", \"cluster\": \"eks-chaos-guardian-autopilot\", \"node_name\": null, \"reason\": \"chaos-testing\", \"dry_run\": true, \"timestamp\": \"2025-09-27T11:49:34.940861\", \"planned_actions\": [], \"status\": \"dry_run_success\"}"}

@@ -794,18 +794,6 @@
         function createDownloadButton(type, filename, downloadUrl) {
             console.log('Creating download button:', {type, filename, downloadUrl});
             
-            // Test if the download URL is accessible
-            fetch(downloadUrl, { method: 'HEAD' })
-                .then(response => {
-                    console.log(`Download URL test for ${filename}:`, response.status);
-                    if (response.status !== 200) {
-                        console.error(`Download URL not accessible: ${downloadUrl}`);
-                    }
-                })
-                .catch(error => {
-                    console.error(`Download URL test failed: ${error}`);
-                });
-            
             // Create a visible download button
             const downloadBtn = document.createElement('button');
             downloadBtn.textContent = `📥 Download ${filename}`;
@@ -834,21 +822,16 @@
             
             downloadBtn.onclick = () => {
                 console.log('Downloading:', downloadUrl);
-                // Try multiple download methods
-                try {
-                    // Method 1: Direct window.open
-                    window.open(downloadUrl, '_blank');
-                } catch (e) {
-                    console.error('Download failed:', e);
-                    // Method 2: Create temporary link
-                    const link = document.createElement('a');
-                    link.href = downloadUrl;
-                    link.download = filename;
-                    link.target = '_blank';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                }
+                
+                // Get OS-agnostic file path from server response
+                const filePath = getFilePath(type, filename);
+                console.log('File path:', filePath);
+                
+                // Show user the file location with better formatting
+                showDownloadSuccess(type, filename, filePath);
+                
+                // Try to open the file location (OS-agnostic)
+                openFileLocation(filePath);
             };
             
             // Add to downloads section or create one
@@ -890,6 +873,145 @@
             const separator = document.createElement('div');
             separator.style.cssText = 'height: 10px;';
             downloadsSection.appendChild(separator);
+        }
+
+        // OS-agnostic file handling functions
+        function getFilePath(type, filename) {
+            // Detect OS and construct appropriate file path
+            const isWindows = navigator.platform.toLowerCase().indexOf('win') > -1;
+            const isMac = navigator.platform.toLowerCase().indexOf('mac') > -1;
+            const isLinux = navigator.platform.toLowerCase().indexOf('linux') > -1;
+            
+            if (isWindows) {
+                // Windows: Use Documents folder
+                return `Documents\\chaos-guardian\\${type}\\${filename}`;
+            } else if (isMac) {
+                // macOS: Use Documents folder
+                return `Documents/chaos-guardian/${type}/${filename}`;
+            } else if (isLinux) {
+                // Linux: Use home directory
+                return `chaos-guardian/${type}/${filename}`;
+            } else {
+                // Fallback: Use generic path
+                return `chaos-guardian/${type}/${filename}`;
+            }
+        }
+
+        function showDownloadSuccess(type, filename, filePath) {
+            // Create a more elegant success message
+            const fileType = type === 'logs' ? 'Log file' : 'CSV export';
+            const icon = type === 'logs' ? '📄' : '📊';
+            
+            const message = `${icon} ${fileType} saved successfully!\n\n` +
+                          `File: ${filename}\n` +
+                          `Location: ${filePath}\n\n` +
+                          `You can find it in your Documents folder.`;
+            
+            // Show styled alert
+            showStyledAlert('Download Complete', message, 'success');
+        }
+
+        function showStyledAlert(title, message, type = 'info') {
+            // Create a styled modal instead of basic alert
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+            `;
+            
+            const dialog = document.createElement('div');
+            const bgColor = type === 'success' ? '#d4edda' : type === 'error' ? '#f8d7da' : '#d1ecf1';
+            const borderColor = type === 'success' ? '#c3e6cb' : type === 'error' ? '#f5c6cb' : '#bee5eb';
+            const textColor = type === 'success' ? '#155724' : type === 'error' ? '#721c24' : '#0c5460';
+            
+            dialog.style.cssText = `
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                max-width: 500px;
+                margin: 20px;
+                border-left: 4px solid ${borderColor};
+            `;
+            
+            dialog.innerHTML = `
+                <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                    <div style="
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 50%;
+                        background: ${bgColor};
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin-right: 15px;
+                        font-size: 20px;
+                    ">
+                        ${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}
+                    </div>
+                    <h3 style="margin: 0; color: ${textColor}; font-size: 18px;">${title}</h3>
+                </div>
+                <div style="color: #333; line-height: 1.5; white-space: pre-line; margin-bottom: 20px;">
+                    ${message}
+                </div>
+                <div style="text-align: right;">
+                    <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                            style="
+                                background: #007bff;
+                                color: white;
+                                border: none;
+                                padding: 8px 16px;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 14px;
+                            ">
+                        OK
+                    </button>
+                </div>
+            `;
+            
+            modal.appendChild(dialog);
+            document.body.appendChild(modal);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (modal.parentElement) {
+                    modal.remove();
+                }
+            }, 5000);
+        }
+
+        function openFileLocation(filePath) {
+            // OS-agnostic file location opening
+            try {
+                const isWindows = navigator.platform.toLowerCase().indexOf('win') > -1;
+                const isMac = navigator.platform.toLowerCase().indexOf('mac') > -1;
+                
+                if (isWindows) {
+                    // Windows: Try to open file explorer
+                    const fullPath = `file:///${process.env.USERPROFILE || 'C:/Users/User'}/${filePath}`;
+                    window.open(fullPath.replace(/\\/g, '/'), '_blank');
+                } else if (isMac) {
+                    // macOS: Try to open Finder
+                    const fullPath = `file:///${process.env.HOME || '/Users/User'}/${filePath}`;
+                    window.open(fullPath, '_blank');
+                } else {
+                    // Linux/Other: Generic approach
+                    console.log('File location:', filePath);
+                }
+            } catch (e) {
+                console.log('Could not open file location:', e);
+                // Fallback: just log the path
+                console.log('File saved to:', filePath);
+            }
         }
 
         // Initialize

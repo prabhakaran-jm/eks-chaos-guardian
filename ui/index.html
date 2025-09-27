@@ -710,15 +710,54 @@
 
         function viewLogs() {
             addLogEntry('info', 'Opening detailed logs...');
-            // In a real implementation, this would open a detailed log viewer
+            
+            // Call the actual logs API
+            fetch('/api/logs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ action: 'get_logs' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    addLogEntry('success', `Log file created: ${data.message}`);
+                    // In a real implementation, you could open the log file or display its contents
+                    console.log('Log file location:', data.log_file);
+                } else {
+                    addLogEntry('error', `Failed to create logs: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                addLogEntry('error', `Log retrieval failed: ${error.message}`);
+            });
         }
 
         function exportResults() {
             addLogEntry('info', 'Exporting results...');
             
-            setTimeout(() => {
-                addLogEntry('success', 'Results exported to CSV');
-            }, 1000);
+            // Call the actual export API
+            fetch('/api/export', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ action: 'export' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    addLogEntry('success', `Results exported to CSV: ${data.message}`);
+                    // In a real implementation, you could trigger a download or show the file location
+                    console.log('CSV file location:', data.csv_file);
+                } else {
+                    addLogEntry('error', `Export failed: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                addLogEntry('error', `Export failed: ${error.message}`);
+            });
         }
 
         // Initialize

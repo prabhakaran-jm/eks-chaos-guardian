@@ -507,7 +507,40 @@
             addLogEntry('info', `Starting ${scenario.name} scenario`);
             updateScenarioStatus(scenarioId, 'running');
 
-            // Simulate scenario execution
+            // Call the actual API endpoint
+            fetch(`/api/scenario/${scenarioId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ action: 'run' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'running') {
+                    addLogEntry('success', `${scenario.name}: Scenario started successfully`);
+                    
+                    // Poll for completion
+                    pollScenarioStatus(scenarioId);
+                } else if (data.status === 'error') {
+                    addLogEntry('error', `${scenario.name}: ${data.message}`);
+                    updateScenarioStatus(scenarioId, 'error');
+                    isRunning = false;
+                    currentScenario = null;
+                }
+            })
+            .catch(error => {
+                addLogEntry('error', `${scenario.name}: Failed to start - ${error.message}`);
+                updateScenarioStatus(scenarioId, 'error');
+                isRunning = false;
+                currentScenario = null;
+            });
+        }
+
+        function pollScenarioStatus(scenarioId) {
+            const scenario = scenarios[scenarioId];
+            
+            // Simulate progress updates while the real scenario runs
             setTimeout(() => {
                 addLogEntry('info', `${scenario.name}: Deploying vulnerable application`);
             }, 1000);
@@ -555,16 +588,37 @@
         function deployInfrastructure() {
             addLogEntry('info', 'Deploying infrastructure with Terraform...');
             
+            // Call the actual deployment script
+            fetch('/api/deploy', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ action: 'deploy' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    addLogEntry('success', 'Infrastructure deployment initiated');
+                } else {
+                    addLogEntry('error', `Deployment failed: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                addLogEntry('error', `Deployment error: ${error.message}`);
+            });
+            
+            // Show progress updates
             setTimeout(() => {
-                addLogEntry('success', 'EKS cluster created');
+                addLogEntry('info', 'EKS cluster being created...');
             }, 2000);
 
             setTimeout(() => {
-                addLogEntry('success', 'Lambda functions deployed');
+                addLogEntry('info', 'Lambda functions being deployed...');
             }, 4000);
 
             setTimeout(() => {
-                addLogEntry('success', 'API Gateway configured');
+                addLogEntry('info', 'API Gateway being configured...');
             }, 6000);
 
             setTimeout(() => {
@@ -601,9 +655,25 @@
         function cleanupResources() {
             addLogEntry('info', 'Cleaning up resources...');
             
-            setTimeout(() => {
-                addLogEntry('success', 'Demo resources cleaned up');
-            }, 2000);
+            // Call the actual cleanup API
+            fetch('/api/cleanup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ action: 'cleanup' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    addLogEntry('success', 'Resource cleanup initiated');
+                } else {
+                    addLogEntry('error', `Cleanup failed: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                addLogEntry('error', `Cleanup error: ${error.message}`);
+            });
 
             // Reset all scenario cards
             Object.keys(scenarios).forEach(scenarioId => {
@@ -614,9 +684,28 @@
         function refreshStatus() {
             addLogEntry('info', 'Refreshing system status...');
             
-            setTimeout(() => {
+            // Call the actual status API
+            fetch('/api/status')
+            .then(response => response.json())
+            .then(data => {
                 addLogEntry('success', 'Status refreshed');
-            }, 1000);
+                
+                // Update the UI with real status data
+                updateSystemStatus(data);
+            })
+            .catch(error => {
+                addLogEntry('error', `Status refresh failed: ${error.message}`);
+            });
+        }
+
+        function updateSystemStatus(statusData) {
+            // Update the system status indicators with real data
+            const components = statusData.components;
+            const metrics = statusData.metrics;
+            
+            // You could update the DOM elements here with the real data
+            console.log('System Status:', components);
+            console.log('Metrics:', metrics);
         }
 
         function viewLogs() {

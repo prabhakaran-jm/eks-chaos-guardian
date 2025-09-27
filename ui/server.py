@@ -41,14 +41,15 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
     
     def do_POST(self):
         """Handle POST requests"""
-        if self.path.startswith('/api/scenario/'):
-            scenario_id = self.path.split('/')[-1]
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+        
+        try:
+            data = json.loads(post_data.decode('utf-8'))
+            action = data.get('action', 'run')
             
-            try:
-                data = json.loads(post_data.decode('utf-8'))
-                action = data.get('action', 'run')
+            if self.path.startswith('/api/scenario/'):
+                scenario_id = self.path.split('/')[-1]
                 
                 if action == 'run':
                     result = self.run_scenario(scenario_id)
@@ -59,10 +60,19 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
                 else:
                     self.send_api_response({'error': 'Unknown action'}, 400)
                     
-            except json.JSONDecodeError:
-                self.send_api_response({'error': 'Invalid JSON'}, 400)
-        else:
-            self.send_api_response({'error': 'Not found'}, 404)
+            elif self.path == '/api/deploy':
+                result = self.deploy_infrastructure()
+                self.send_api_response(result)
+                
+            elif self.path == '/api/cleanup':
+                result = self.cleanup_resources()
+                self.send_api_response(result)
+                
+            else:
+                self.send_api_response({'error': 'Not found'}, 404)
+                
+        except json.JSONDecodeError:
+            self.send_api_response({'error': 'Invalid JSON'}, 400)
     
     def send_api_response(self, data: Dict[str, Any], status_code: int = 200):
         """Send JSON API response"""
@@ -216,6 +226,82 @@ class ChaosGuardianHandler(http.server.SimpleHTTPRequestHandler):
             'message': f'Scenario {scenario_id} stopped',
             'timestamp': datetime.utcnow().isoformat()
         }
+    
+    def deploy_infrastructure(self) -> Dict[str, Any]:
+        """Deploy infrastructure using Terraform"""
+        print("Deploying infrastructure...")
+        
+        try:
+            # Run terraform deploy in background
+            def run_terraform():
+                try:
+                    result = subprocess.run(
+                        ['terraform', 'apply', '-auto-approve'],
+                        cwd='../infra',
+                        capture_output=True,
+                        text=True,
+                        timeout=600  # 10 minutes timeout
+                    )
+                    print(f"Terraform deployment completed: {result.returncode}")
+                except subprocess.TimeoutExpired:
+                    print("Terraform deployment timed out")
+                except Exception as e:
+                    print(f"Terraform deployment failed: {e}")
+            
+            thread = threading.Thread(target=run_terraform)
+            thread.daemon = True
+            thread.start()
+            
+            return {
+                'status': 'success',
+                'message': 'Infrastructure deployment started',
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': str(e),
+                'timestamp': datetime.utcnow().isoformat()
+            }
+    
+    def cleanup_resources(self) -> Dict[str, Any]:
+        """Cleanup resources"""
+        print("Cleaning up resources...")
+        
+        try:
+            # Run terraform destroy in background
+            def run_cleanup():
+                try:
+                    result = subprocess.run(
+                        ['terraform', 'destroy', '-auto-approve'],
+                        cwd='../infra',
+                        capture_output=True,
+                        text=True,
+                        timeout=300  # 5 minutes timeout
+                    )
+                    print(f"Terraform cleanup completed: {result.returncode}")
+                except subprocess.TimeoutExpired:
+                    print("Terraform cleanup timed out")
+                except Exception as e:
+                    print(f"Terraform cleanup failed: {e}")
+            
+            thread = threading.Thread(target=run_cleanup)
+            thread.daemon = True
+            thread.start()
+            
+            return {
+                'status': 'success',
+                'message': 'Resource cleanup started',
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': str(e),
+                'timestamp': datetime.utcnow().isoformat()
+            }
 
 def start_server(port: int = 8080):
     """Start the web server"""

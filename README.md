@@ -62,23 +62,35 @@ cd eks-chaos-guardian
 # Deploy infrastructure
 make deploy
 
-# Run demo scenarios
-make demo-oom
-make demo-image-pull
-make demo-readiness-probe
-make demo-disk-pressure
-make demo-pdb-blocking
-make demo-coredns
+# Run health checks
+./scripts/test-health.sh
+
+# Run comprehensive tests
+./scripts/test-all.sh
+
+# Run interactive demo
+./scripts/demo-scenario.sh
 ```
 
 ## 📁 Project Structure
 
 ```
 eks-chaos-guardian/
+├── scripts/               # Executable scripts
+│   ├── test-health.sh
+│   ├── test-all.sh
+│   └── demo-scenario.sh
+├── docs/                  # Documentation
+│   ├── DEPLOYMENT.md
+│   ├── PROJECT_SUMMARY.md
+│   ├── TESTING_SUMMARY.md
+│   ├── architecture.md
+│   ├── testing-guide.md
+│   └── cost-optimization.md
 ├── infra/                 # Terraform infrastructure
-│   ├── main.tf
+│   ├── cost-optimized.tf
 │   ├── variables.tf
-│   └── outputs.tf
+│   └── backend.tf
 ├── agent/                 # Bedrock AgentCore configuration
 │   ├── agent-config.yaml
 │   ├── tools/
@@ -87,13 +99,15 @@ eks-chaos-guardian/
 │   ├── fault-injection/
 │   ├── detection/
 │   ├── execution/
-│   └── verification/
+│   ├── slack/
+│   └── runbook/
 ├── demo/                  # Demo scenarios
 │   └── scenarios/
-├── docs/                  # Documentation
-│   ├── architecture.md
-│   └── api-reference.md
-└── Makefile
+├── ui/                    # Web dashboard
+├── tests/                 # Test suite
+├── Makefile              # Build automation
+├── README.md             # Project overview
+└── requirements.txt      # Python dependencies
 ```
 
 ## 🧪 Demo Scenarios

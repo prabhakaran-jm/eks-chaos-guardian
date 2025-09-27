@@ -5,6 +5,11 @@
 help: ## Show this help message
 	@echo "EKS Chaos Guardian - Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Scripts available in scripts/ directory:"
+	@echo "  ./scripts/test-health.sh     - Quick health check"
+	@echo "  ./scripts/test-all.sh        - Comprehensive testing"
+	@echo "  ./scripts/demo-scenario.sh   - Interactive demo"
 
 deploy: ## Deploy the complete infrastructure
 	@echo "🚀 Deploying EKS Chaos Guardian infrastructure..."
